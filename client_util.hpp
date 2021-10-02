@@ -9,7 +9,7 @@ using namespace std;
 
 class Client
 {
-    private:
+    public:
         const string marker = "~#`";
         
         string participant_list;
@@ -144,60 +144,38 @@ class Client
             
         }
 
-        void communicate_with_server(){
+        void send_user_message_to_client(){
+            cout << "Enter the recepient's id ( To view complete list, press \'s\' ) : ";
+            getline(cin, recepient_id);
 
-            while (true)
+            if (recepient_id == "s")
             {
-                memset(send_buffer, '\0', 4096);
-
-                cout << "What operation do you want to perform ? (1 - send a message, 2 - show participants , 3 - exit room) : ";
-                string operation;
-                getline(cin, operation);
-
-                switch (operation[0])
-                {
-                case '1':
-                    cout << "Enter the recepient's id ( To view complete list, press \'s\' ) : ";
-                    getline(cin, recepient_id);
-
-                    if (recepient_id == "s")
-                    {
-                        cout << participant_list << endl;
-                        continue;
-                    }
-
-                    cout << "Enter your message: ";
-                    getline(cin, text_message);
-
-                    get_encoded_msg(recepient_id, text_message);
-                    if (send(client_sockfd, send_buffer, sizeof(send_buffer), 0) == -1)
-                    {
-                        cout << "Error in sending!" << endl;
-                        close(client_sockfd);
-                        return;
-                    }
-
-                    break;
-
-                case '2':
-                    cout << participant_list << endl;
-                    break;
-
-                case '3':
-                    get_encoded_msg("e1", "exit");
-                    if (send(client_sockfd, send_buffer, sizeof(send_buffer), 0) == -1)
-                    {
-                        cout << "Error in sending!" << endl;
-                        close(client_sockfd);
-                        return;
-                    }
-                    close(client_sockfd);
-                    return;
-
-                default:
-                    break;
-                }
+                cout << participant_list << endl;
+                return;
             }
+          
+            cout << "Enter your message: ";
+            getline(cin, text_message);
+            
+            
+            get_encoded_msg(recepient_id, text_message);
+            if (send(client_sockfd,send_buffer, sizeof(send_buffer), 0) == -1)
+            {
+                cout << "Error in sending!" << endl;
+                close(client_sockfd);
+                return;
+            }
+        }
+        void exit_app(){
+            get_encoded_msg("e1", "exit");
+            if (send(client_sockfd, send_buffer, sizeof(send_buffer), 0) == -1)
+            {
+                cout << "Error in sending!" << endl;
+                close(client_sockfd);
+                return;
+            }
+
+            close(client_sockfd);
         }
 
 };

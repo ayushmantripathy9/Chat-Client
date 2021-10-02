@@ -34,8 +34,6 @@ public:
     }
 };
 
-
-
 class FileServer
 {
 public:
@@ -76,11 +74,12 @@ public:
         {
             FileUtilClient *new_client = new FileUtilClient(file_server_sockfd);
             clients_list[++room_client_id] = new_client;
-            clients_list[room_client_id]->client_thread = new thread(&FileServer::file_recv_client,this,room_client_id);
+            clients_list[room_client_id]->client_thread = new thread(&FileServer::file_recv_client, this, room_client_id);
         }
     }
     void leave(int client_id)
     {
+        close(clients_list[client_id]->client_socket_fd);
         clients_list.erase(client_id);
     }
 
@@ -89,21 +88,24 @@ public:
         FileUtilClient *client = clients_list[client_id];
         while (true)
         {
-             memset(client->recv_buffer, '\0', BUFFER_SIZE);
-            if (recv(client->client_socket_fd, &client->recv_buffer, sizeof(client->recv_buffer), 0) < 0)
+
+            memset(client->recv_buffer, '\0', BUFFER_SIZE);
+            if (recv(client->client_socket_fd, &client->recv_buffer, BUFFER_SIZE, 0) < 0)
             {
                 cout << "Error in getting the message" << endl;
             }
-            // pair<int, int> dest_details = decode_message(client_id);
-            cout<<"h1 "<<client->recv_buffer<<" "<<client_id<<endl;
-            relay_file(client_id);
+
+            if (relay_file(client_id))
+                return;
         }
     }
-    // dest_id<>filesize<>filename
+
+    // dest_id+marker+filesize+marker+filename
     pair<int, int> decode_message(int sender_id)
     {
         string message = string(clients_list[sender_id]->recv_buffer);
         int ind = message.find(marker);
+
         string sender = message.substr(1, ind - 1);
 
         string rem = message.substr(ind + 3, message.size());
@@ -112,7 +114,7 @@ public:
 
         int destination_id = stoi(sender);
 
-        memset(clients_list[destination_id]->send_buffer,'\0',BUFFER_SIZE);
+        memset(clients_list[destination_id]->send_buffer, '\0', BUFFER_SIZE);
 
         rem = rem + marker + to_string(sender_id); // append sender's id as well
 
@@ -125,10 +127,18 @@ public:
         return {stoi(sender), stoi(msg_size)};
     }
 
-    void relay_file(int source_id)
+    bool relay_file(int source_id)
     {
 
         FileUtilClient *source = clients_list[source_id];
+
+        string exit_msg = "e1" + marker + "exit";
+        if (string(clients_list[source_id]->recv_buffer) == exit_msg)
+        {
+            close(clients_list[source_id]->client_socket_fd);
+            clients_list.erase(source_id);
+            return true;
+        }
 
         pair<int, int> details = decode_message(source_id);
         int dest_id = details.first;
@@ -136,20 +146,18 @@ public:
 
         FileUtilClient *dest = clients_list[dest_id];
 
-        memset(source->recv_buffer, '\0' , BUFFER_SIZE);
+        memset(source->recv_buffer, '\0', BUFFER_SIZE);
         for (int i = 0; i < sizeof(SIGNAL_SEND); ++i)
         {
             source->recv_buffer[i] = SIGNAL_SEND[i];
         }
-      
+
         send(dest->client_socket_fd, &dest->send_buffer, BUFFER_SIZE, 0);
-        cout<<"Message sent: "<<&dest->send_buffer<<endl;
+        cout << "Message sent: " << dest->send_buffer << endl;
 
         send(source->client_socket_fd, &source->recv_buffer, BUFFER_SIZE, 0);
-        cout<<"Acknowledgement sent: "<<&source->recv_buffer<<endl;
-        
-        
-          
+        cout << "Acknowledgement sent: " << source->recv_buffer << endl;
+
         int size_transferred = 0;
         while (size_transferred < size_of_file)
         {
@@ -158,7 +166,7 @@ public:
 
             if (recv(source->client_socket_fd, &source->recv_buffer, sizeof(source->recv_buffer), 0) < 0)
             {
-                cout << "An error occured while retrieving data from client."<< endl;
+                cout << "An error occured while retrieving data from client." << endl;
                 continue;
             }
 
@@ -169,18 +177,13 @@ public:
 
             if (send(dest->client_socket_fd, &dest->send_buffer, sizeof(dest->send_buffer), 0) < 0)
             {
-                cout << "An error occured while sending data to client."<< endl;
+                cout << "An error occured while sending data to client." << endl;
                 continue;
             }
-            
             size_transferred += BUFFER_SIZE;
         }
 
         sem_post(&(dest->file_client_semaphore));
+        return false;
     }
 };
-
-int main(){
-    FileServer* FS = new FileServer();
-    FS->start_file_server();
-}
