@@ -4,10 +4,11 @@
 #include <thread>
 
 #include "client_util.hpp"
-
 #include "file_client.hpp"
 
 using namespace std;
+
+#define BUFFER_SIZE 4096
 
 void recv_thread(Client *);
 void communicate_with_server(Client *, FileClient *);
@@ -46,9 +47,9 @@ void communicate_with_server(Client *chat_client, FileClient *file_client)
 
     while (true)
     {
-        memset(chat_client->send_buffer, '\0', 4096);
+        memset(chat_client->send_buffer, '\0', BUFFER_SIZE);
 
-        cout << "What operation do you want to perform ? (1 - send a message, 2 - send an attachment, 3 - show participants , 4 - exit room) : ";
+        cout << "What operation do you want to perform :\n 1 - send a message , 2 - send an attachment , 3 - show participants , 4 - create new group ,\n 5 - join a group , 6 - send group msg , 7 - leave group ,  8 - exit room\nEnter operation:  ";
         string operation;
         getline(cin, operation);
 
@@ -57,6 +58,7 @@ void communicate_with_server(Client *chat_client, FileClient *file_client)
         case '1':
 
             chat_client->send_user_message_to_client();
+            // send grp msg if required
             break;
 
         case '2':
@@ -67,8 +69,19 @@ void communicate_with_server(Client *chat_client, FileClient *file_client)
         case '3':
             cout << chat_client->participant_list << endl;
             break;
-
         case '4':
+            chat_client->create_new_group();
+            break;
+        case '5':
+            chat_client->join_group();
+            break;
+        case '6':
+            chat_client->send_message_to_group();
+            break;
+        case '7':
+            chat_client->leave_group();
+            break;    
+        case '8':
             chat_client->exit_app();
             file_client->leave_app();
             break;

@@ -7,6 +7,8 @@
 
 using namespace std;
 
+#define BUFFER_SIZE 4096
+
 class Client
 {
     public:
@@ -15,7 +17,7 @@ class Client
         string participant_list;
         string client_name, text_message, recepient_id;
 
-        char recv_buffer[4096], send_buffer[4096];
+        char recv_buffer[BUFFER_SIZE], send_buffer[BUFFER_SIZE];
         
         int client_sockfd;
 
@@ -40,9 +42,9 @@ class Client
          * */
         void recv_msg()
         {
-            mkdir("received", 0777);
-            mkdir("received/user_chat_log", 0777);
-            mkdir("received/group_chat_log", 0777);
+            mkdir("messages", 0777);
+            mkdir("messages/user_chat_log", 0777);
+            mkdir("messages/group_chat_log", 0777);
 
             while (true)
             {
@@ -56,13 +58,21 @@ class Client
                 if (received_msg[0] == "m")
                 {
                     std::ofstream write_to_file;
-                    write_to_file.open("./received/user_chat_log/" + received_msg[2] + ".txt", std::ios::app);
+                    write_to_file.open("./messages/user_chat_log/" + received_msg[2] + ".txt", std::ios::app);
                     write_to_file << received_msg[1] << "\n";
                     write_to_file.close();
                 }
                 else if (received_msg[0] == "p")
                 {
                     participant_list = received_msg[1];
+                }
+                else if (received_msg[0]=="g")
+                {
+                    std::ofstream write_to_file;
+                    write_to_file.open("./messages/group_chat_log/" + received_msg[2] + ".txt", std::ios::app);
+                    write_to_file << received_msg[1] << "\n";
+                    write_to_file.close();
+
                 }
 
                 memset(recv_buffer, '\0', 4096);
@@ -101,7 +111,7 @@ class Client
         /**
          * Parses and decodes the incoming message from the server
          * @param None
-         * @return vector of msg_type, msg and header(Required for file_name. Absesnt in case of notification msgs)
+         * @return vector of msg_type, msg and header(Required for file_name. Absent in case of notification msgs)
          * */
         vector<string> decode_msg()
         {
@@ -111,7 +121,7 @@ class Client
             string type = raw_msg.substr(0, marker_ind);
             string remaining = raw_msg.substr(marker_ind + 3, raw_msg.size());
 
-            if (type == "m")
+            if (type == "m"|| type == "g")
             {
                 marker_ind = remaining.find(marker);
 
@@ -165,6 +175,71 @@ class Client
                 close(client_sockfd);
                 return;
             }
+        }
+
+        /**
+         * Utility function to send a message string to server
+         * */
+        void send_msg_to_server(string msg){
+            memset(send_buffer, '\0', BUFFER_SIZE);
+            for(int i = 0 ; i < msg.size() ; ++i)
+                send_buffer[i] = msg[i];
+
+            if(send(client_sockfd, send_buffer, BUFFER_SIZE, 0) < 0){
+                cout<<"Error in creating new group"<<endl;
+                return;
+            }
+        }
+        
+        void create_new_group(){
+            cout<<"Enter group name: ";
+            string group_name;
+            getline(cin,group_name);
+
+            string msg = "cg"+group_name+marker;
+
+            send_msg_to_server(msg);
+            
+            return;
+        }
+
+        void join_group(){
+            cout<<"Enter group_id: ";
+            string group_id;
+            getline(cin,group_id);
+
+            string msg = "j"+group_id+marker;
+
+            send_msg_to_server(msg);
+            
+            return;
+            
+        }
+        
+        void send_message_to_group(){
+            string group_id;
+            cout<<"Enter group_id: ";
+            getline(cin,group_id);
+
+            string msg;
+            cout<<"Enter message: ";
+            getline(cin,msg);
+            
+            string send_msg = group_id+marker+msg;
+            send_msg_to_server(send_msg);
+            return;
+
+        }
+        void leave_group(){
+            cout<<"Enter group_id :";
+            string group_id;
+            getline(cin,group_id);
+
+            string msg = "l"+group_id+marker;
+
+            send_msg_to_server(msg);
+            
+            return;
         }
         void exit_app(){
             get_encoded_msg("e1", "exit");

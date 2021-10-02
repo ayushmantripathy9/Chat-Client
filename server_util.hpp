@@ -11,6 +11,7 @@
 
 using namespace std;
 
+#define BUFFER_SIZE 4096
 class Client
 {
 public:
@@ -20,8 +21,8 @@ public:
     int client_socket_fd;
 
     struct sockaddr_in addr;
-    char recv_buffer[4096];
-    char send_buffer[4096];
+    char recv_buffer[BUFFER_SIZE];
+    char send_buffer[BUFFER_SIZE];
 
     vector<thread *> client_threads;
     sem_t client_semaphore;
@@ -55,15 +56,18 @@ public:
      * @param sender_id client_id of the message sender (as that buffer would contain the message sent)
      * @return receiver_detals : pair of msg_type and receiver_id
      * */
-    pair<char, int> find_receiver()
+
+    // c+g+GrpName+marker
+    pair<char, string> find_receiver()
     {
-        pair<char, int> receiver_details;
+        pair<char, string> receiver_details;
 
         string s(this->recv_buffer);
         receiver_details.first = s[0];
 
         int marker_ind = s.find(marker);
-        receiver_details.second = stoi(s.substr(1, marker_ind));
+
+        receiver_details.second = s.substr(1, marker_ind);
         return receiver_details;
     }
 };
@@ -72,19 +76,22 @@ class Server
 {
 public:
     const int MAX_CONN_REQUESTS = 5;
-    int room_client_id = 0;
+    int room_client_id = 0, group_id = 0;
     string marker = "~#`";
 
     unordered_map<int, Client *> clients_list;
     unordered_map<int, string> participants_name;
-    char participant_list_buffer[4096];
+
+    unordered_map<int, set<int>> message_group;
+    unordered_map<int, string> group_names;
+
+    char participant_list_buffer[BUFFER_SIZE];
 
     int server_sockfd;
     struct sockaddr_in server_addr;
 
     sem_t participant_buffer_semaphore;
 
-public:
     Server()
     {
 
@@ -103,8 +110,8 @@ public:
         {
             cout << "Error in conversion to passive socket\n";
         }
-        cout << "Listening for connections..." << endl;
-        memset(participant_list_buffer, '\0', 4096);
+        cout << "Server ready. Listening for connections..." << endl;
+        memset(participant_list_buffer, '\0', BUFFER_SIZE);
     }
 
     /**
@@ -156,6 +163,59 @@ public:
             participant_list_buffer[ind++] = new_client[i];
     }
 
+    void create_group(string group_name, int client_id)
+    {
+        message_group[++group_id].insert(client_id);
+        group_names[group_id] = group_name;
+    }
+    void join_group(int group_id, int client_id)
+    {
+        message_group[group_id].insert(client_id);
+    }
+    void leave_group(string group_info, int client_id)
+    {
+        string gid = group_info.substr(1, group_info.size());
+        int group_id = stoi(gid);
+
+        message_group[group_id].erase(client_id);
+    }
+
+    //  g+marker+msg_received_by_client+marker+gid (msg_received_by_client = sender_name : msg)
+    void encode_group_msg_to_client(int sender_id, int receiver_id, string msg)
+    {
+
+        string message = "g" + marker + participants_name[sender_id] + " : " + msg + marker + "g"+to_string(group_id);
+        memset(clients_list[receiver_id]->send_buffer,'\0', BUFFER_SIZE);
+        
+        for (int i = 0; i < message.size(); ++i)
+        {
+            clients_list[receiver_id]->send_buffer[i] = message[i];
+        }
+        return;
+    }
+
+    void send_message_to_group_member(int receiver_id, int sender_id, string msg)
+    {
+        sem_wait(&clients_list[receiver_id]->client_semaphore);
+    
+        encode_group_msg_to_client(sender_id, receiver_id, msg);
+        send(clients_list[receiver_id]->client_socket_fd, &clients_list[receiver_id]->send_buffer, BUFFER_SIZE, 0);
+        sem_post(&clients_list[receiver_id]->client_semaphore);
+    }
+
+    void send_message_to_group(string msg, int sender_id, int group_id)
+    {
+        vector<thread *> group_send_threads;
+        for (auto i : message_group[group_id])
+        {
+            group_send_threads.push_back(new thread(&Server::send_message_to_group_member, this, i, sender_id, msg));
+        }
+        for (int i = 0; i < group_send_threads.size(); ++i)
+        {
+            group_send_threads[i]->join();
+        }
+    }
+
     /**
      * Handles participant leave. Closes threads and updates participant list
      * @param client_id client_id of the leaving participant
@@ -174,7 +234,7 @@ public:
 
         participant_list_msg.pop_back();
 
-        memset(participant_list_buffer, '\0', 4096);
+        memset(participant_list_buffer, '\0', BUFFER_SIZE);
 
         int ind = 0;
         for (int i = 0; i < participant_list_msg.size(); ++i)
@@ -239,7 +299,7 @@ public:
     {
         int receiver_id = send_details[0], sender_id = send_details[1], header_id = send_details[2];
 
-        memset(clients_list[receiver_id]->send_buffer, '\0', 4096);
+        memset(clients_list[receiver_id]->send_buffer, '\0', BUFFER_SIZE);
         encode_send_message(sender_id, receiver_id, header_id);
 
         sem_wait(&clients_list[receiver_id]->client_semaphore);
@@ -268,12 +328,13 @@ public:
 
         // Update the participant list and notify everyone in the room
         new_client_joined(client_id);
+        message_group[0].insert(client_id);
         this->participant_notification();
 
         while (true)
         {
             // reset the buffer for new msg
-            memset(clients_list[client_id]->recv_buffer, '\0', 4096);
+            memset(clients_list[client_id]->recv_buffer, '\0', BUFFER_SIZE);
 
             if (recv(client_sockfd, clients_list[client_id]->recv_buffer, sizeof(clients_list[client_id]->recv_buffer), 0) < 0)
             {
@@ -283,11 +344,14 @@ public:
             }
 
             // finding the receiver of the message
-            pair<char, int> receiver_details = clients_list[client_id]->find_receiver();
+            pair<char, string> receiver_details = clients_list[client_id]->find_receiver();
             char receiver_type = receiver_details.first;
-            int receiver_id = receiver_details.second;
 
-            memset(clients_list[client_id]->send_buffer, '\0', 4096);
+            int receiver_id = 0;
+            if (receiver_details.second[0] != 'g')
+                receiver_id = stoi(receiver_details.second);
+
+            memset(clients_list[client_id]->send_buffer, '\0', BUFFER_SIZE);
 
             if (receiver_type == 'o')
             {
@@ -300,9 +364,27 @@ public:
                 self_thread.join();
                 friend_thread.join();
             }
-            else if (receiver_type == 'g')
+            else if (receiver_type == 'c')
+            {
+                create_group(receiver_details.second.substr(1, receiver_details.second.size()), client_id);
+            }
+            else if (receiver_type == 'j')
             {
                 // implement grp msg using multicast
+                string gid = receiver_details.second.substr(1, receiver_details.second.size());
+                join_group(stoi(gid), client_id);
+            }
+            else if (receiver_type == 'g')
+            {
+                string msg(clients_list[client_id]->recv_buffer);
+                int ind = msg.find(marker);
+                msg = msg.substr(ind + 3, msg.size());
+                send_message_to_group(msg, client_id, receiver_id);
+            }
+            else if (receiver_type == 'l')
+            {
+                // Remove user from a group
+                leave_group(receiver_details.second, client_id);
             }
             else if (receiver_type == 'e')
             {
