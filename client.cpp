@@ -49,45 +49,55 @@ void communicate_with_server(Client *chat_client, FileClient *file_client)
     {
         memset(chat_client->send_buffer, '\0', BUFFER_SIZE);
 
-        cout << "What operation do you want to perform :\n 1 - send a message , 2 - send an attachment , 3 - show participants , 4 - create new group ,\n 5 - join a group , 6 - send group msg , 7 - leave group ,  8 - exit room\nEnter operation:  ";
+        cout << "What operation do you want to perform :\n 1 - send a message , 2 - send an attachment , 3 - show participants , 4 - create new group , 5 - join a group, \n 6 - send group msg , 7 - leave group , 8 - show all groups , 9 - show members of a group, 0 - exit chat client\nEnter operation:  ";
         string operation;
         getline(cin, operation);
 
         switch (operation[0])
         {
-        case '1':
+            case '1':
+                chat_client->send_user_message_to_client();
+                break;
 
-            chat_client->send_user_message_to_client();
-            // send grp msg if required
-            break;
+            case '2':
+                file_client->get_file();
+                break;
 
-        case '2':
+            case '3':
+                cout << chat_client->participant_list << endl;
+                break;
 
-            file_client->get_file();
-            break;
+            case '4':
+                chat_client->create_new_group();
+                break;
 
-        case '3':
-            cout << chat_client->participant_list << endl;
-            break;
-        case '4':
-            chat_client->create_new_group();
-            break;
-        case '5':
-            chat_client->join_group();
-            break;
-        case '6':
-            chat_client->send_message_to_group();
-            break;
-        case '7':
-            chat_client->leave_group();
-            break;    
-        case '8':
-            chat_client->exit_app();
-            file_client->leave_app();
-            break;
+            case '5':
+                chat_client->join_group();
+                break;
 
-        default:
-            break;
+            case '6':
+                chat_client->send_message_to_group();
+                break;
+
+            case '7':
+                chat_client->leave_group();
+                break;
+
+            case '8':
+                chat_client->print_group_list();
+                break;
+
+            case '9':
+                chat_client->group_members();
+                break;
+
+            case '0':
+                chat_client->exit_app();
+                file_client->leave_app();
+                break;
+
+            default:
+                break;
         }
     }
 
