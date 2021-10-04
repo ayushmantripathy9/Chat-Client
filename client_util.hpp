@@ -328,7 +328,7 @@ public:
 
         send_msg_to_server(msg);
         joined_group.erase(group_id);
-        
+
         return;
     }
     void exit_app()

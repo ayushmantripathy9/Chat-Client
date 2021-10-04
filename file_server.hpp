@@ -65,7 +65,7 @@ public:
         {
             cout << "Error in conversion to passive socket\n";
         }
-        cout << "Listening for connections..." << endl;
+        cout << "File Server Ready." << endl;
     }
 
     void start_file_server()

@@ -110,7 +110,7 @@ public:
         {
             cout << "Error in conversion to passive socket\n";
         }
-        cout << "Server ready. Listening for connections..." << endl;
+        cout << "Messaging Server Ready.\nListening for connections..." << endl;
         memset(participant_list_buffer, '\0', BUFFER_SIZE);
     }
 
@@ -143,14 +143,14 @@ public:
         int ind = 0;
         while (participant_list_buffer[ind] != '\0')
             ++ind;
-
-        if (ind == 0)
+        if (clients_list.size() == 1)
         {
+            memset(participant_list_buffer,'\0',BUFFER_SIZE); 
+            ind = 0;
             string starter_code = "p" + marker;
             for (int i = 0; i < starter_code.size(); ++i)
                 participant_list_buffer[ind++] = starter_code[i];
         }
-
         string start_of_list;
         if (participants_name.size() != 1)
             start_of_list = "\no";
@@ -160,7 +160,7 @@ public:
         string new_client = start_of_list + to_string(client_id) + " : " + participants_name[client_id];
 
         for (int i = 0; i < new_client.size(); ++i)
-            participant_list_buffer[ind++] = new_client[i];
+            participant_list_buffer[ind++] = new_client[i];   
     }
 
     void create_group(string group_name, int client_id)

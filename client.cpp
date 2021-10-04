@@ -52,9 +52,10 @@ void communicate_with_server(Client *chat_client, FileClient *file_client)
     {
         memset(chat_client->send_buffer, '\0', BUFFER_SIZE);
 
-        cout << "What operation do you want to perform :\n 1 - send a message , 2 - send an attachment , 3 - show participants , 4 - create new group , 5 - join a group, \n 6 - send group msg , 7 - leave group , 8 - show all groups , 9 - show members of a group, 0 - exit chat client\nEnter operation:  ";
+        cout << "\nWhat operation do you want to perform :\n 1 - send a message , 2 - send an attachment , 3 - show participants , 4 - create new group , 5 - join a group, \n 6 - send group msg , 7 - leave group , 8 - show all groups , 9 - show members of a group, 0 - exit chat client\nEnter operation:  ";
         string operation;
         getline(cin, operation);
+        cout<<"..................................................................................................................\n"<<endl;
 
         switch (operation[0])
         {
@@ -97,11 +98,15 @@ void communicate_with_server(Client *chat_client, FileClient *file_client)
             case '0':
                 chat_client->exit_app();
                 file_client->leave_app();
+
+                cout<<"Leaving Chat Client. Hope you enjoyed using it."<<endl;
+                
                 return;
 
             default:
                 break;
         }
+        cout<<"\n.................................................................................................................."<<endl;
     }
 
     return;
