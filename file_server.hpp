@@ -135,8 +135,25 @@ public:
         string exit_msg = "e1" + marker + "exit";
         if (string(clients_list[source_id]->recv_buffer) == exit_msg)
         {
-            close(clients_list[source_id]->client_socket_fd);
+            FileUtilClient* client = clients_list[source_id];
+            sem_wait(&client->file_client_semaphore);
+
+            memset(client->send_buffer, '\0' , BUFFER_SIZE);
+            string EXIT_SIGNAL = "Exit Client"+marker;
+            for(int i = 0 ; i < EXIT_SIGNAL.size() ; ++i){
+                client->send_buffer[i] = EXIT_SIGNAL[i];
+            }
+
+            if(send(client->client_socket_fd, client->send_buffer, BUFFER_SIZE, 0) < 0){
+                cout<<"Error in exiting client from the file server."<<endl;
+                return false;
+            }
+
+            sem_post(&client->file_client_semaphore);
+
+            close(client->client_socket_fd);
             clients_list.erase(source_id);
+
             return true;
         }
 

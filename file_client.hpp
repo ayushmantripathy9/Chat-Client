@@ -28,7 +28,7 @@ private:
     int server_port = 9002;
 
     string filename;
-    bool move;
+    bool move = false, exit_wait = true;
 
 public:
     thread *recv_thread;
@@ -132,6 +132,8 @@ public:
         mkdir("file_hub/", 0777);
         mkdir("file_hub/received/", 0777);
 
+        string EXIT_SIGNAL = "Exit Client" + marker;
+
         while (true)
         {
             memset(recv_buffer, '\0', BUFFER_SIZE);
@@ -145,6 +147,11 @@ public:
             {
                 move = true;
                 continue;
+            }
+            else if (msg == EXIT_SIGNAL)
+            {
+                exit_wait = false;
+                return;
             }
 
             // filename, filesize, sender
@@ -191,8 +198,13 @@ public:
         if (send(client_sockfd, &send_buffer, BUFFER_SIZE, 0) < 0)
         {
             cout << "Error in Disconnecting from the File Server." << endl;
+            return;
         }
-        delete recv_thread;
+
+        while (exit_wait)
+        {
+            //  DO NOTHING. WAIT FOR EXIT MSG FROM FILE SERVER.  //
+        }
         close(client_sockfd);
     }
 };

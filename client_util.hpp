@@ -22,7 +22,7 @@ public:
 
     int client_sockfd;
 
-    bool ack_marker = true;
+    bool ack_marker = true, exit_wait = true;
 
 public:
     Client(struct sockaddr_in server_addr)
@@ -120,6 +120,12 @@ public:
             {
                 group_list[received_msg[1]] = received_msg[2];
             }
+            else if (received_msg[0] == "e"){
+                // exit this thread;
+                exit_wait = false;
+                close(client_sockfd);
+                return;
+            }
 
             memset(recv_buffer, '\0', 4096);
         }
@@ -199,7 +205,7 @@ public:
             string header = remaining.substr(marker_ind + 3, remaining.size());
             return {type, msg, header};
         }
-        else if (type == "p" || type == "gl" || type == "gml")
+        else if (type == "p" || type == "gl" || type == "gml" || type == "e")
         {
             return {type, remaining};
         }
@@ -322,6 +328,7 @@ public:
 
         send_msg_to_server(msg);
         joined_group.erase(group_id);
+        
         return;
     }
     void exit_app()
@@ -330,10 +337,13 @@ public:
         if (send(client_sockfd, send_buffer, sizeof(send_buffer), 0) == -1)
         {
             cout << "Error in sending!" << endl;
-            close(client_sockfd);
             return;
         }
 
-        close(client_sockfd);
+        while(exit_wait){
+            // Wait for successful exit response from the server
+        }
+
+        return;
     }
 };

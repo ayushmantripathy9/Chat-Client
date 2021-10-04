@@ -435,7 +435,6 @@ public:
             if (recv(client_sockfd, clients_list[client_id]->recv_buffer, sizeof(clients_list[client_id]->recv_buffer), 0) < 0)
             {
                 cout << "Wrong Msg Input" << endl;
-                // notify client
                 continue;
             }
 
@@ -487,7 +486,23 @@ public:
                 leave_group(receiver_details.second, client_id);
             }
             else if (receiver_type == 'e')
-            {
+            {   
+                Client* client = clients_list[client_id];
+
+                sem_wait(&client->client_semaphore);
+
+                memset(client->send_buffer, '\0' , BUFFER_SIZE);
+                string exit_msg = "e"+marker+"o"+to_string(client_id);
+                for(int i = 0 ; i < exit_msg.size() ; ++i){
+                    client->send_buffer[i] = exit_msg[i];
+                } 
+
+                if(send(client_sockfd, clients_list[client_id]->send_buffer, BUFFER_SIZE , 0) < 0){
+                    cout<<"Error in exiting the client."<<endl;
+                    return;
+                }
+                sem_post(&client->client_semaphore);
+
                 participant_left(client_id);
                 this->participant_notification();
                 close(client_sockfd);

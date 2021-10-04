@@ -34,6 +34,9 @@ int main()
     thread recv(recv_thread, chat_client);
     communicate_with_server(chat_client, file_client);
 
+    recv.join();
+    file_client->recv_thread->join();
+
     return 0;
 }
 
@@ -94,7 +97,7 @@ void communicate_with_server(Client *chat_client, FileClient *file_client)
             case '0':
                 chat_client->exit_app();
                 file_client->leave_app();
-                break;
+                return;
 
             default:
                 break;
