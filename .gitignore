@@ -3,3 +3,6 @@ client
 server
 Test*
 Client*
+
+file_hub/
+messages/
