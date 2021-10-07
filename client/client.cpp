@@ -3,12 +3,11 @@
 #include <arpa/inet.h>
 #include <thread>
 
-#include "client_util.hpp"
+#include "constants.hpp"
+#include "client.hpp"
 #include "file_client.hpp"
 
 using namespace std;
-
-#define BUFFER_SIZE 4096
 
 void recv_thread(Client *);
 void communicate_with_server(Client *, FileClient *);

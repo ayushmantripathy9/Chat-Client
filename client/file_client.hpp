@@ -11,10 +11,6 @@
 #include <sys/stat.h>
 
 using namespace std;
-#define BUFFER_SIZE 4096
-
-string marker = "~#`";
-string SIGNAL_SEND = "#$%^";
 
 class FileClient
 {
