@@ -3,6 +3,5 @@
 using namespace std;
 
 #define BUFFER_SIZE 4096
-
 const string marker = "~#`";
-string SIGNAL_SEND = "#$%^";
+const string SIGNAL_SEND = "#$%^";

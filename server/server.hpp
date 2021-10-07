@@ -11,79 +11,15 @@
 
 using namespace std;
 
-#define BUFFER_SIZE 4096
-class Client
-{
-public:
-    string name;
-    string marker = "~#`";
+#include "client_util.hpp"
+#include "parsers.hpp"
+#include "group_util.hpp"
 
-    int client_socket_fd;
-
-    struct sockaddr_in addr;
-    char recv_buffer[BUFFER_SIZE];
-    char send_buffer[BUFFER_SIZE];
-
-    vector<thread *> client_threads;
-    sem_t client_semaphore;
-
-    Client(int server_sockfd)
-    {
-        // Initializing the threads and semaphore for each client
-        int client_size = sizeof(addr);
-        client_socket_fd = accept(server_sockfd, (sockaddr *)&(addr), (socklen_t *)&client_size);
-
-        client_threads = vector<thread *>(2);
-        sem_init(&client_semaphore, 0, 1);
-    }
-
-    /**
-     * Parses client encoded msg to get the client message
-     * @param sender_id client_id of the message sender
-     * @return string containing client message
-     * */
-    string get_client_message()
-    {
-        string s(this->recv_buffer);
-
-        int marker_ind = s.find(marker);
-
-        return s.substr(marker_ind + 3, s.size());
-    }
-
-    /**
-     * Finds the receiver of the message after decoding incoming messages.
-     * @param sender_id client_id of the message sender (as that buffer would contain the message sent)
-     * @return receiver_detals : pair of msg_type and receiver_id
-     * */
-
-    // c+g+GrpName+marker
-    pair<char, string> find_receiver()
-    {
-        pair<char, string> receiver_details;
-
-        string s(this->recv_buffer);
-        receiver_details.first = s[0];
-
-        int marker_ind = s.find(marker);
-
-        receiver_details.second = s.substr(1, marker_ind - 1);
-        return receiver_details;
-    }
-};
-
-class Server
+class Server : public GroupUtil
 {
 public:
     const int MAX_CONN_REQUESTS = 5;
-    int room_client_id = 0, assign_group_id = 0;
-    string marker = "~#`";
-
-    unordered_map<int, Client *> clients_list;
-    unordered_map<int, string> participants_name;
-
-    unordered_map<int, set<int>> message_group;
-    unordered_map<int, string> group_names;
+    int room_client_id = 0;
 
     char participant_list_buffer[BUFFER_SIZE];
 
@@ -119,7 +55,6 @@ public:
      * @param client_id
      * @return NULL
      * */
-
     void send_participant_list(int client_id)
     {
 
@@ -161,130 +96,6 @@ public:
 
         for (int i = 0; i < new_client.size(); ++i)
             participant_list_buffer[ind++] = new_client[i];   
-    }
-
-    void create_group(string group_name, int client_id)
-    {
-        message_group[++assign_group_id].insert(client_id);
-
-        int gid = assign_group_id;
-        group_names[gid] = group_name;
-
-        string msg = "a" + marker + "g" + to_string(gid) + marker + group_name;
-
-        sem_wait(&(clients_list[client_id]->client_semaphore));
-
-        memset(clients_list[client_id]->send_buffer, '\0', BUFFER_SIZE);
-        for (int i = 0; i < msg.size(); i++)
-        {
-            clients_list[client_id]->send_buffer[i] = msg[i];
-        }
-        send(clients_list[client_id]->client_socket_fd, clients_list[client_id]->send_buffer, BUFFER_SIZE, 0);
-
-        sem_post(&clients_list[client_id]->client_semaphore);
-
-        msg = "n" + marker + "g" + to_string(gid) + marker + group_name;
-
-        vector<thread *> thread_send;
-        for (auto i : clients_list)
-        {
-            thread_send.push_back(new thread(&Server::send_message_to_all, this, i.first, msg));
-        }
-        for (auto i : thread_send)
-            i->join();
-    }
-    void send_message_to_all(int receiver_id, string msg)
-    {
-        sem_wait(&clients_list[receiver_id]->client_semaphore);
-
-        memset(clients_list[receiver_id]->send_buffer, '\0', BUFFER_SIZE);
-        for (int i = 0; i < msg.size(); i++)
-        {
-            clients_list[receiver_id]->send_buffer[i] = msg[i];
-        }
-        send(clients_list[receiver_id]->client_socket_fd, &clients_list[receiver_id]->send_buffer, BUFFER_SIZE, 0);
-
-        sem_post(&clients_list[receiver_id]->client_semaphore);
-    }
-    void join_group(int group_id, int client_id)
-    {
-        message_group[group_id].insert(client_id);
-    }
-
-    void encode_and_send_group_member_list(int group_id, int client_id)
-    {
-        Client *client = clients_list[client_id];
-        sem_wait(&client->client_semaphore);
-
-        memset(client->send_buffer, '\0', BUFFER_SIZE);
-
-        int ind = 0;
-        string header = "gml" + marker + "Members in group \"" + to_string(group_id) + " - " + group_names[group_id] + "\" are:\n";
-
-        for (int i = 0; i < header.size(); ++i)
-            client->send_buffer[ind++] = header[i];
-
-        for (auto i : message_group[group_id])
-        {
-            client->send_buffer[ind++] = 'o';
-            string participant = to_string(i) + " : " + participants_name[i] + "\n";
-            for (int j = 0; j < participant.size(); ++j)
-            {
-                client->send_buffer[ind++] = participant[j];
-            }
-        }
-
-        if (send(client->client_socket_fd, client->send_buffer, BUFFER_SIZE, 0) < 0)
-        {
-            cout << "Error in sending the group member list to client." << endl;
-            return;
-        }
-
-        sem_post(&client->client_semaphore);
-    }
-
-    void leave_group(string group_info, int client_id)
-    {
-        string gid = group_info.substr(1, group_info.size());
-        int group_id = stoi(gid);
-
-        message_group[group_id].erase(client_id);
-    }
-
-    //  g+marker+msg_received_by_client+marker+gid (msg_received_by_client = sender_name : msg)
-    void encode_group_msg_to_client(int sender_id, int receiver_id, string msg, int group_id)
-    {
-
-        string message = "g" + marker + participants_name[sender_id] + " : " + msg + marker + "g" + to_string(group_id);
-        memset(clients_list[receiver_id]->send_buffer, '\0', BUFFER_SIZE);
-
-        for (int i = 0; i < message.size(); ++i)
-        {
-            clients_list[receiver_id]->send_buffer[i] = message[i];
-        }
-        return;
-    }
-
-    void send_message_to_group_member(int receiver_id, int sender_id, string msg, int group_id)
-    {
-        sem_wait(&clients_list[receiver_id]->client_semaphore);
-
-        encode_group_msg_to_client(sender_id, receiver_id, msg, group_id);
-        send(clients_list[receiver_id]->client_socket_fd, &clients_list[receiver_id]->send_buffer, BUFFER_SIZE, 0);
-        sem_post(&clients_list[receiver_id]->client_semaphore);
-    }
-
-    void send_message_to_group(string msg, int sender_id, int group_id)
-    {
-        vector<thread *> group_send_threads;
-        for (auto i : message_group[group_id])
-        {
-            group_send_threads.push_back(new thread(&Server::send_message_to_group_member, this, i, sender_id, msg, group_id));
-        }
-        for (int i = 0; i < group_send_threads.size(); ++i)
-        {
-            group_send_threads[i]->join();
-        }
     }
 
     /**
@@ -337,33 +148,8 @@ public:
     }
 
     /**
-    * Encodes the message to be sent to the clients
-    * 
-    * Encoding Scheme: type + marker + message + marker + header
-    *      - type : m => message, p => participant list
-    *      - message: actual message to be sent
-    *      - header ( = header_name + header_id ): used to identify the file the message is to be written
-    *      - marker: dummy string to separate parts (marker = ~#`)
-    * 
-    * @param sender_id client_id of the sender
-    * @param receiver_id client_id of the receiver
-    * @param header_id file_name in which the message would be stored at the client side
-    * */
-    void encode_send_message(int sender_id, int receiver_id, int header_id)
-    {
-        string sender_name = participants_name[sender_id];
-        string sender_message = clients_list[sender_id]->get_client_message();
-        string header_name = participants_name[header_id];
-
-        string send_message = "m" + marker + sender_name + " : " + sender_message + marker + header_name + "_" + to_string(header_id);
-
-        for (int i = 0; i < send_message.size(); ++i)
-            clients_list[receiver_id]->send_buffer[i] = send_message[i];
-    }
-
-    /**
     * Sends the msg in the client's send buffer to a specified client
-    * @param send_detals vector specifying receive, sender and file_name header.
+    * @param send_details vector specifying receive, sender and file_name header.
     * @return NULL
     * */
     void send_message_to_client(vector<int> send_details)
@@ -371,35 +157,13 @@ public:
         int receiver_id = send_details[0], sender_id = send_details[1], header_id = send_details[2];
 
         memset(clients_list[receiver_id]->send_buffer, '\0', BUFFER_SIZE);
-        encode_send_message(sender_id, receiver_id, header_id);
+        encode_send_message(sender_id, receiver_id, header_id, participants_name, clients_list);
 
         sem_wait(&clients_list[receiver_id]->client_semaphore);
         send(clients_list[receiver_id]->client_socket_fd, clients_list[receiver_id]->send_buffer, sizeof(clients_list[receiver_id]->send_buffer), 0);
         sem_post(&clients_list[receiver_id]->client_semaphore);
 
         return;
-    }
-
-    void group_list_to_client_joined(int client_id)
-    {
-        string msg = "gl" + marker;
-        for (auto i : group_names)
-        {
-            msg = msg + "g" + to_string(i.first) + marker + i.second + marker;
-        }
-        msg = msg + "end";
-
-        sem_wait(&(clients_list[client_id]->client_semaphore));
-
-        memset(clients_list[client_id]->send_buffer, '\0', BUFFER_SIZE);
-        for (int i = 0; i < msg.size(); i++)
-        {
-            clients_list[client_id]->send_buffer[i] = msg[i];
-        }
-
-        send(clients_list[client_id]->client_socket_fd, clients_list[client_id]->send_buffer, BUFFER_SIZE, 0);
-
-        sem_post(&clients_list[client_id]->client_semaphore);
     }
 
     /**

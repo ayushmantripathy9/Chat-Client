@@ -10,10 +10,6 @@
 #include <thread>
 
 using namespace std;
-#define BUFFER_SIZE 4096
-
-string marker = "~#`";
-string SIGNAL_SEND = "#$%^";
 
 class FileUtilClient
 {
