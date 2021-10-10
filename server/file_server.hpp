@@ -34,15 +34,15 @@ class FileServer
 {
 public:
     int room_client_id = 0;
-    unordered_map<int, FileUtilClient *> clients_list;
-    struct sockaddr_in file_server_addr;
 
+    unordered_map<int, FileUtilClient *> clients_list;
+
+    struct sockaddr_in file_server_addr;
     int file_server_sockfd;
 
     const int port_number = 9002;
     const int MAX_CONN_REQUESTS = 5;
 
-public:
     FileServer()
     {
 
@@ -91,6 +91,38 @@ public:
                 cout << "Error in getting the message" << endl;
             }
 
+            string message(client->recv_buffer);
+
+            int ind = message.find(marker);
+            string type = message.substr(0,ind);
+
+            if(type == "Ch#ec#k C#li#en#t"){
+                message = message.substr(ind+4, message.size());
+                int check_id = stoi(message);
+
+                string msg = "FOUND"+marker;
+                if(clients_list.find(check_id) == clients_list.end()){
+                    msg = "NOT "+msg;
+                }
+
+                sem_wait(&client->file_client_semaphore);
+
+                memset(client->send_buffer, '\0' , BUFFER_SIZE);
+                for(int i = 0 ; i < msg.size() ; ++i){
+                    client->send_buffer[i] = msg[i];
+                }
+
+                if(send(client->client_socket_fd, &client->send_buffer, BUFFER_SIZE, 0) < 0){
+                    cout<<"Couldn't send error message!"<<endl;
+                }
+
+                memset(client->send_buffer, '\0' , BUFFER_SIZE);
+                sem_post(&client->file_client_semaphore);
+
+                continue;
+            }
+
+
             if (relay_file(client_id))
                 return;
         }
@@ -125,7 +157,6 @@ public:
 
     bool relay_file(int source_id)
     {
-
         FileUtilClient *source = clients_list[source_id];
 
         string exit_msg = "e1" + marker + "exit";
@@ -140,7 +171,7 @@ public:
                 client->send_buffer[i] = EXIT_SIGNAL[i];
             }
 
-            if(send(client->client_socket_fd, client->send_buffer, BUFFER_SIZE, 0) < 0){
+            if(send(client->client_socket_fd, &client->send_buffer, BUFFER_SIZE, 0) < 0){
                 cout<<"Error in exiting client from the file server."<<endl;
                 return false;
             }
@@ -165,11 +196,13 @@ public:
             source->recv_buffer[i] = SIGNAL_SEND[i];
         }
 
-        send(dest->client_socket_fd, &dest->send_buffer, BUFFER_SIZE, 0);
-        cout << "Message sent: " << dest->send_buffer << endl;
+        if(send(dest->client_socket_fd, &dest->send_buffer, BUFFER_SIZE, 0) < 0){
+            cout<<"Error in sending Message."<<endl;
+        }
 
-        send(source->client_socket_fd, &source->recv_buffer, BUFFER_SIZE, 0);
-        cout << "Acknowledgement sent: " << source->recv_buffer << endl;
+        if(send(source->client_socket_fd, &source->recv_buffer, BUFFER_SIZE, 0) < 0){
+            cout<<"Error in sending Acknowledgement."<<endl;
+        } 
 
         int size_transferred = 0;
         while (size_transferred < size_of_file)

@@ -87,10 +87,7 @@ public:
                 participant_list_buffer[ind++] = starter_code[i];
         }
         string start_of_list;
-        if (participants_name.size() != 1)
-            start_of_list = "\no";
-        else
-            start_of_list = "o";
+        start_of_list = "\no";
 
         string new_client = start_of_list + to_string(client_id) + " : " + participants_name[client_id];
 
@@ -179,6 +176,7 @@ public:
         {
             cout << "Wrong Input Name" << endl;
         }
+
         string client_name = clients_list[client_id]->get_client_message();
         participants_name[client_id] = client_name;
         cout << "New Client \"" << client_name << "\" joined !!" << endl;

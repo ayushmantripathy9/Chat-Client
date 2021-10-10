@@ -10,7 +10,10 @@
 #include <thread>
 #include <sys/stat.h>
 
+#include <filesystem>
+
 using namespace std;
+using std::filesystem::exists;
 
 class FileClient
 {
@@ -25,6 +28,7 @@ private:
 
     string filename;
     bool move = false, exit_wait = true;
+    int check_wait = 0;
 
 public:
     thread *recv_thread;
@@ -49,9 +53,15 @@ public:
         string s = id + marker + to_string(size) + marker + name;
         return s;
     }
+
     void sendFile(std::istream &input, string receiver_id, string filename)
     {
         // getting the size of file
+        if (!exists("file_hub/" + filename))
+        {
+            cout << "Entered filename doesn't exist. Retry operation !!" << endl;
+            return;
+        }
         ifstream file_size_ptr("file_hub/" + filename, ios::binary);
         file_size_ptr.seekg(0, ios::end);
         int file_size = file_size_ptr.tellg();
@@ -65,7 +75,7 @@ public:
         {
             buffer[i] = send_msg[i];
         }
-        if (send(client_sockfd, &buffer, sizeof(buffer), 0) < 0)
+        if (send(client_sockfd, &buffer, BUFFER_SIZE, 0) < 0)
         {
             cout << "Error in sending the data chunk to the server." << endl;
         }
@@ -91,18 +101,47 @@ public:
             size_transferred += BUFFER_SIZE;
         }
         move = false;
+
+        cout << "File sent successfully !!" << endl;
+        return;
     }
 
     void get_file()
     {
 
-        string filename;
-        cout << "Drop your file in the \"file_hub\" directory. Enter the filename: ";
-        getline(cin, filename);
-
         string recepient_id;
         cout << "Enter the recepient's id: ";
         getline(cin, recepient_id);
+
+        string check_send_msg = "Ch#ec#k C#li#en#t" + marker + recepient_id;
+        char buffer[BUFFER_SIZE];
+        memset(buffer, '\0', BUFFER_SIZE);
+        for (int i = 0; i < check_send_msg.size(); i++)
+        {
+            buffer[i] = check_send_msg[i];
+        }
+        
+        if (send(client_sockfd, &buffer, sizeof(buffer), 0) < 0)
+        {
+            cout << "Error in sending the check client msg to the server." << endl;
+        }
+
+        check_wait = 0;
+
+        while (check_wait == 0)
+        {
+            // WAIT FOR PARTICIPANT BEING CHECKED BY SERVER //
+        }
+
+        if (check_wait == 2)
+        {
+            cout << "Entered client_id incorrect. No such client exists." << endl;
+            return;
+        }
+
+        string filename;
+        cout << "Drop your file in the \"file_hub\" directory. Enter the filename: ";
+        getline(cin, filename);
 
         std::ifstream fin("./file_hub/" + filename, std::ifstream::binary);
         sendFile(fin, recepient_id, filename);
@@ -129,6 +168,9 @@ public:
         mkdir("file_hub/received/", 0777);
 
         string EXIT_SIGNAL = "Exit Client" + marker;
+        string CLIENT_NOT_FOUND = "Client Not Found" + marker;
+        string CHECK_TRUE = "FOUND" + marker;
+        string CHECK_FALSE = "NOT FOUND" + marker;
 
         while (true)
         {
@@ -149,6 +191,17 @@ public:
                 exit_wait = false;
                 return;
             }
+            else if (msg == CHECK_TRUE)
+            {
+                check_wait = 1;
+                continue;
+            }
+            else if (msg == CHECK_FALSE)
+            {
+                check_wait = 2;
+                continue;
+            }
+            
 
             // filename, filesize, sender
             vector<string> data = this->decode_recv_msg();

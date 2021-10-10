@@ -19,9 +19,10 @@ public:
     string participant_list;
     string client_name, text_message, recepient_id;
 
+    unordered_map<string, string> clients_list;
+
     bool ack_marker = true, exit_wait = true;
 
-public:
     Client(struct sockaddr_in server_addr) : GroupUtil(server_addr)
     {
 
@@ -32,12 +33,48 @@ public:
         }
     }
 
+    void update_clients_list()
+    {
+        clients_list.clear();
+
+        string new_list = participant_list + "\n";
+        string member;
+
+        int ind;    
+
+        while (true)
+        {
+
+            new_list = new_list.substr(1, new_list.size()); 
+
+            if (new_list.find("\n") == string::npos)
+            {
+                break;
+            }
+            else
+            {
+                ind = new_list.find("\n");
+                member = new_list.substr(0, ind);
+                new_list = new_list.substr(ind, new_list.size());
+            }
+
+            ind = member.find(":");
+            clients_list[member.substr(0, ind - 1)] = member.substr(ind + 2, member.size());
+        }
+    }
+
     void group_members()
     {
         cout << "Enter group id, whose members you want to see: ";
 
         string group_id;
         getline(cin, group_id);
+
+        if (group_list.find(group_id) == group_list.end())
+        {
+            cout << "Entered group_id is incorrect. No such group exists!!" << endl;
+            return;
+        }
 
         group_id = group_id.substr(1, group_id.size());
         string list_msg = "s" + group_id + marker;
@@ -91,6 +128,7 @@ public:
             else if (received_msg[0] == "p")
             {
                 participant_list = received_msg[1];
+                update_clients_list();
             }
             else if (received_msg[0] == "g")
             {
@@ -131,8 +169,20 @@ public:
 
     void connect_client_to_server()
     {
-        cout << "Enter your name : ";
-        getline(cin, client_name);
+        while (true)
+        {
+            cout << "Enter your name : ";
+            getline(cin, client_name);
+
+            if (client_name.size() == 0)
+            {
+                cout << "Your name can't be empty. Retry !!" << endl
+                     << endl;
+                continue;
+            }
+
+            break;
+        }
 
         get_encoded_msg("n", client_name, send_buffer);
 
@@ -152,6 +202,12 @@ public:
         if (recepient_id == "s")
         {
             cout << participant_list << endl;
+            return;
+        }
+
+        if (clients_list.find(recepient_id) == clients_list.end())
+        {
+            cout << "Entered client_id incorrect. No such client exists." << endl;
             return;
         }
 
@@ -178,7 +234,7 @@ public:
 
         while (exit_wait)
         {
-            // Wait for successful exit response from the server
+            // Wait for successful exit response from the server //
         }
 
         return;

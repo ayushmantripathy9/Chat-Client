@@ -21,9 +21,15 @@ public:
 
     void create_new_group()
     {
+
         cout << "Enter group name: ";
         string group_name;
         getline(cin, group_name);
+
+        if(group_name.size() == 0) {
+            cout<<"Group Name can't be empty. Retry operation !!"<<endl;
+            return;
+        }
 
         string msg = "cg" + group_name + marker;
 
@@ -37,7 +43,11 @@ public:
         cout << "Enter group_id: ";
         string group_id;
         getline(cin, group_id);
-
+        if (group_list.find(group_id) == group_list.end())
+        {
+            cout << "The group_id entered by you is incorrect." << endl;
+            return;
+        }
         string msg = "j" + group_id + marker;
 
         send_msg_to_server(msg, send_buffer, client_sockfd);
@@ -62,6 +72,12 @@ public:
         cout << "Enter group_id: ";
         getline(cin, group_id);
 
+        if (joined_group.find(group_id) == joined_group.end())
+        {
+            cout << "You are not a memeber of the Group. Join it to send messages." << endl;
+            return;
+        }
+
         string msg;
         cout << "Enter message: ";
         getline(cin, msg);
@@ -75,6 +91,12 @@ public:
         cout << "Enter group_id : ";
         string group_id;
         getline(cin, group_id);
+
+        if (joined_group.find(group_id) == joined_group.end())
+        {
+            cout << "You are not a memeber of the Group." << endl;
+            return;
+        }
 
         string msg = "l" + group_id + marker;
 
