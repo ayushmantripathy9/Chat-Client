@@ -10,10 +10,22 @@
 #include <thread>
 #include <sys/stat.h>
 
-#include <filesystem>
+#ifndef __has_include
+  static_assert(false, "__has_include not supported");
+#else
+#  if __cplusplus >= 201703L && __has_include(<filesystem>)
+#    include <filesystem>
+     namespace fs = std::filesystem;
+#  elif __has_include(<experimental/filesystem>)
+#    include <experimental/filesystem>
+     namespace fs = std::experimental::filesystem;
+#  elif __has_include(<boost/filesystem.hpp>)
+#    include <boost/filesystem.hpp>
+     namespace fs = boost::filesystem;
+#  endif
+#endif
 
 using namespace std;
-using std::filesystem::exists;
 
 class FileClient
 {
@@ -57,7 +69,7 @@ public:
     void sendFile(std::istream &input, string receiver_id, string filename)
     {
         // getting the size of file
-        if (!exists("file_hub/" + filename))
+        if (!fs::exists("file_hub/" + filename))
         {
             cout << "Entered filename doesn't exist. Retry operation !!" << endl;
             return;
